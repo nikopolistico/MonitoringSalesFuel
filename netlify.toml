@@ -1,0 +1,8 @@
+# Netlify build settings (used when the site is deployed from Git).
+# The SPA rewrite lives in public/_redirects so it also works for drag-and-drop deploys of dist/.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

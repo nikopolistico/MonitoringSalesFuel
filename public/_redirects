@@ -1,0 +1,2 @@
+# Single-page app: let Vue Router handle every path (fixes 404 on refresh)
+/*    /index.html   200
