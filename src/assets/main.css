@@ -1,38 +1,120 @@
-@import 'tailwindcss';
 
-/* Brand tokens. Usable as CSS vars (var(--brand)) and as Tailwind colors (bg-brand, text-muted …). */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+/*
+ ---break---
+ */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn-vue/tailwind.css';
+/*
+ ---break---
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * RCJA Powerfuel theme.
+ * shadcn-vue tokens (--primary, --muted, --border …) are set to the station brand, so every
+ * component in src/components/ui is on-brand. Extra station tokens sit below them.
+ */
 :root {
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --ink: #1b1f24;
-  --muted: #6b7280;
-  --line: #d9dde3;
+  /* shadcn tokens */
+  --radius: 0.625rem;
+  --background: #f4f5f7;
+  --foreground: #1b1f24;
+  --card: #ffffff;
+  --card-foreground: #1b1f24;
+  --popover: #ffffff;
+  --popover-foreground: #1b1f24;
+  --primary: #c8102e;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f2;
+  --secondary-foreground: #1b1f24;
+  --muted: #f1f3f5;
+  --muted-foreground: #5f6873;
+  --accent: #eef0f2;
+  --accent-foreground: #1b1f24;
+  --destructive: #dc2626;
+  --border: #dde1e6;
+  --input: #cdd2d7;
+  --ring: #c8102e;
+  --chart-1: #c8102e;
+  --chart-2: #16a34a;
+  --chart-3: #facc15;
+  --chart-4: #2b3138;
+  --chart-5: #9b0c23;
+
+  /* station tokens */
+  --bg: var(--background);
+  --surface: var(--card);
+  --ink: var(--foreground);
+  --line: var(--border);
   --brand: #c8102e;
   --brand-dark: #9b0c23;
-  --accent: #fbbf24;
-  --accent-soft: #fff4d1;
+  --highlight: #fbbf24; /* the yellow "input your expenses here" bars */
+  --highlight-soft: #fff4d1;
   --good: #15803d;
   --bad: #dc2626;
-  --admin: #1f2937;
-  --radius: 8px;
+  --admin: #2b3138; /* pump housing slate */
+  --lcd: #c9d3c0;
+  --lcd-ink: #1e2a1e;
+  --premium: #e11d2a;
+  --regular: #16a34a;
+  --diesel: #facc15;
 }
 
 @theme inline {
+  /* shadcn */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* station */
   --color-page: var(--bg);
   --color-surface: var(--surface);
   --color-ink: var(--ink);
-  --color-muted: var(--muted);
   --color-line: var(--line);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+  --color-highlight: var(--highlight);
+  --color-highlight-soft: var(--highlight-soft);
   --color-good: var(--good);
   --color-bad: var(--bad);
   --color-admin: var(--admin);
-  --font-sans: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --color-lcd: var(--lcd);
+  --color-lcd-ink: var(--lcd-ink);
+  --color-premium: var(--premium);
+  --color-regular: var(--regular);
+  --color-diesel: var(--diesel);
+
+  /* type: Barlow everywhere, Barlow Condensed for headings and readouts */
+  --font-sans: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --font-body: var(--font-sans);
   --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-  --font-body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: var(--font-display);
 }
 
 @layer base {
@@ -42,8 +124,7 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    background: var(--bg);
-    font-family: var(--font-sans);
+    @apply bg-background font-sans text-foreground antialiased;
   }
   h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 4px; }
   h2 { font-size: 1rem; font-weight: 700; margin: 0; }
@@ -65,46 +146,33 @@
   @media (max-width: 640px) {
     input, select, textarea { font-size: 16px; padding: 8px 10px; }
   }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 @layer components {
   .config-warning { background: #fef3c7; border-bottom: 1px solid #f59e0b; padding: 10px 16px; font-size: 0.9rem; }
 
   /* ---------- generic ---------- */
-  .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
-  .muted { color: var(--muted); font-size: 0.9rem; }
+  .muted { color: var(--muted-foreground); font-size: 0.9rem; }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   .card + .card { margin-top: 16px; }
   .card-head {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
     padding: 8px 12px; border-bottom: 1px solid var(--line); background: #fafbfc;
   }
-  .card-head.yellow { background: var(--accent); border-color: #e0a800; font-style: italic; }
+  .card-head.yellow { background: var(--highlight); border-color: #e0a800; font-style: italic; }
   .card-head.yellow h2 { text-transform: uppercase; }
   .card-body { padding: 12px; }
 
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-    padding: 7px 14px; border-radius: 6px; font-size: 0.9rem; text-decoration: none; white-space: nowrap;
-  }
-  .btn:hover { border-color: #b8bec7; }
-  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
-  .btn.primary:hover { background: var(--brand-dark); }
-  .btn.ghost { background: transparent; }
-  .btn.small { padding: 3px 9px; font-size: 0.8rem; }
-  .btn.danger { color: var(--bad); }
-  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-  .icon-btn { border: none; background: none; color: var(--muted); font-size: 1rem; padding: 4px 8px; }
-  .icon-btn:hover { color: var(--bad); }
-
   input.num { text-align: right; font-variant-numeric: tabular-nums; }
   input.invalid { border-color: var(--bad); background: #fef2f2; }
-  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
-
-  .alert { padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 0.9rem; }
-  .alert.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-  .alert.ok { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted-foreground); font-weight: 600; }
 
   /* ---------- tables ---------- */
   table.sheet { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -138,36 +206,18 @@
   .sheet-title .sub { font-size: 0.85rem; font-weight: 600; margin-top: 2px; }
   .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 
-  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
-  .kpi .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); font-weight: 600; }
-  .kpi .value { font-size: clamp(1rem, 3.6vw, 1.25rem); font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-
   .overshort {
     display: flex; justify-content: space-between; align-items: center; padding: 14px; gap: 12px;
     font-weight: 800; font-size: 1.1rem;
   }
   .overshort .amount { font-size: 1.5rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
-  .badge.short { background: #fee2e2; color: #991b1b; }
-  .badge.over { background: #dcfce7; color: #166534; }
-  .badge.balanced { background: #e5e7eb; color: #374151; }
 
   .sticky-actions {
     position: sticky; bottom: 0; z-index: 5; margin-top: 20px;
     display: flex; justify-content: flex-end; gap: 10px; align-items: center;
     background: rgba(244, 245, 247, 0.95); backdrop-filter: blur(4px); padding: 10px 0; border-top: 1px solid var(--line);
   }
-  .signature { text-align: right; font-size: 0.8rem; margin-top: 12px; color: var(--muted); }
-
-  .pump-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.8rem; margin: 2px; background: #fff; }
-  .admin-tag { font-size: 0.65rem; background: var(--accent); color: #111; padding: 2px 6px; border-radius: 4px; margin-left: 4px; vertical-align: middle; font-weight: 800; }
-  .login-panel { background: var(--accent-soft); border-top: 1px solid var(--accent); }
-
-  /* ---------- dashboard chart ---------- */
-  .bars { display: flex; align-items: flex-end; gap: 3px; height: 140px; padding: 12px; }
-  .bars .bar { flex: 1; background: var(--brand); border-radius: 3px 3px 0 0; min-height: 2px; }
-  .bars .bar:hover { background: var(--brand-dark); }
-  .bars-axis { display: flex; justify-content: space-between; padding: 0 12px 10px; font-size: 0.72rem; color: var(--muted); }
+  .signature { text-align: right; font-size: 0.8rem; margin-top: 12px; color: var(--muted-foreground); }
 
   /* ---------- image export (Save as PNG / JPEG) ---------- */
   .export-frame { overflow-x: auto; }
@@ -184,6 +234,13 @@
   .sheet-export.exporting input.invalid { color: var(--bad); }
 }
 
+/* vue-sonner on phones: full width + side offsets pushed toasts 16px off-screen */
+@media (max-width: 600px) {
+  [data-sonner-toaster] {
+    width: auto !important;
+  }
+}
+
 /* ---------- print ---------- */
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
@@ -195,4 +252,15 @@
   table.sheet { font-size: 0.72rem; }
   table.sheet td { padding: 2px 4px; }
   .fuel-tag, .card-head.yellow { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+/*
+ ---break---
+ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

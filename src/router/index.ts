@@ -1,9 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { adminRoutes } from './admin'
+import { attendantRoutes } from './attendant'
 
 declare module 'vue-router' {
   interface RouteMeta {
-    /** Who may open the page. Pages without it are the login pages. */
+    /** Who may open the page. Pages without it are the login page. */
     area?: 'ATTENDANT' | 'ADMIN'
   }
 }
@@ -12,45 +14,10 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     /* one sign-in page for everyone; the role decides where they land */
-    { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
-
-    /* ---------------- pump attendant site ---------------- */
-    {
-      path: '/',
-      component: () => import('@/layouts/AttendantLayout.vue'),
-      meta: { area: 'ATTENDANT' },
-      children: [
-        { path: '', name: 'reports', component: () => import('@/views/ReportsView.vue') },
-        { path: 'reports/new', name: 'report-new', component: () => import('@/views/ShiftReportView.vue') },
-        {
-          path: 'reports/:id',
-          name: 'report-edit',
-          component: () => import('@/views/ShiftReportView.vue'),
-          props: true,
-        },
-      ],
-    },
-
-    /* ---------------- admin dashboard ---------------- */
+    { path: '/login', name: 'login', component: () => import('@/views/auth/LoginView.vue') },
     { path: '/admin/login', redirect: '/login' },
-    {
-      path: '/admin',
-      component: () => import('@/layouts/AdminLayout.vue'),
-      meta: { area: 'ADMIN' },
-      children: [
-        { path: '', name: 'admin-dashboard', component: () => import('@/views/AdminDashboardView.vue') },
-        { path: 'reports', name: 'admin-reports', component: () => import('@/views/ReportsView.vue') },
-        {
-          path: 'reports/:id',
-          name: 'admin-report',
-          component: () => import('@/views/ShiftReportView.vue'),
-          props: true,
-        },
-        { path: 'attendants', name: 'admin-attendants', component: () => import('@/views/AttendantsView.vue') },
-        { path: 'fuel-types', name: 'admin-fuel-types', component: () => import('@/views/FuelTypesView.vue') },
-      ],
-    },
-
+    attendantRoutes,
+    adminRoutes,
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
