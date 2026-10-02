@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>RCJA Powerfuel</title>
+  <rect width="64" height="64" rx="14" fill="#C8102E"/>
+  <g fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- pump body and base -->
+    <path d="M15 52V16a5 5 0 0 1 5-5h14a5 5 0 0 1 5 5v36"/>
+    <path d="M10 52h34"/>
+    <!-- hose and nozzle -->
+    <path d="M39 27h4a4 4 0 0 1 4 4v11a3.5 3.5 0 0 0 7 0V22l-6-6"/>
+  </g>
+  <!-- meter window -->
+  <rect x="20" y="17" width="14" height="10" rx="2" fill="#fff"/>
+</svg>
