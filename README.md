@@ -40,6 +40,17 @@ the views `v_fuel_sales` and `shift_report_summary`, so they can never disagree 
 - The admin creates each pump attendant and (optionally) their username + password.
 - The admin can change an attendant's login, disable/enable it, and delete reports.
 - Each role can only sign in on its own page.
+- **Each pump attendant only sees their own shift reports** (enforced by the database, not just the
+  website). They cannot open, edit or list a coworker's sheets, and only charge shortages / overages
+  to themselves. The admin sees every attendant's reports.
+- A new sheet still pre-fills each pump's first reading from the last reading of that pump, even if a
+  coworker recorded it — only the meter reading and prices are shared, never the coworker's sheet.
+
+### Updating an existing database
+
+If your database was created with an older `schema.sql`, run
+[`supabase/migrations/001_attendant_own_reports.sql`](supabase/migrations/001_attendant_own_reports.sql)
+in the SQL Editor instead of re-running `schema.sql`. It keeps all data.
 
 ## Setup
 

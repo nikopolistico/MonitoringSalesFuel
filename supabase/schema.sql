@@ -26,6 +26,9 @@ drop function if exists public.admin_set_login(uuid, text, text);
 drop function if exists public.sign_in(text, text);
 drop function if exists public.sign_out();
 drop function if exists public.me();
+drop function if exists public.sheet_defaults();
+drop function if exists public.can_access_report(uuid);
+drop function if exists public.current_attendant_id();
 drop function if exists public.admin_reset_password(uuid, text);
 drop table    if exists public.payments          cascade;
 drop table    if exists public.payment_methods   cascade;
@@ -159,8 +162,10 @@ create table public.shift_reports (
   created_by      uuid references public.user_accounts(id) on delete set null,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  unique (report_date, shift_id)
+  -- each attendant keeps their own sheet for a shift
+  unique (report_date, shift_id, prepared_by)
 );
+create index on public.shift_reports (prepared_by);
 create trigger shift_reports_updated_at
   before update on public.shift_reports
   for each row execute function public.set_updated_at();
@@ -261,6 +266,28 @@ as $$
   select exists (
     select 1 from user_accounts
     where id = public.current_account_id() and role = 'ADMIN'
+  )
+$$;
+
+-- The pump attendant behind the signed-in account (null for ADMIN)
+create function public.current_attendant_id()
+returns uuid
+language sql stable security definer
+set search_path = public
+as $$
+  select pump_attendant_id from user_accounts where id = public.current_account_id()
+$$;
+
+-- Admin sees every report; an attendant only the reports they prepared
+create function public.can_access_report(p_report uuid)
+returns boolean
+language sql stable security definer
+set search_path = public
+as $$
+  select public.is_admin() or exists (
+    select 1 from shift_reports
+    where id = p_report
+      and prepared_by = public.current_attendant_id()
   )
 $$;
 
@@ -480,6 +507,9 @@ set search_path = public
 as $$
 declare
   v_id uuid := nullif(p->>'id', '')::uuid;
+  -- attendants always save as themselves; only the admin may choose
+  v_by uuid := case when public.is_admin() then nullif(p->>'prepared_by', '')::uuid
+                    else public.current_attendant_id() end;
 begin
   if public.current_account_id() is null then
     raise exception 'Please sign in again';
@@ -491,7 +521,7 @@ begin
     values (
       (p->>'report_date')::date,
       (p->>'shift_id')::smallint,
-      nullif(p->>'prepared_by', '')::uuid,
+      v_by,
       coalesce((p->>'total_error')::numeric, 0),
       coalesce((p->>'total_discount')::numeric, 0),
       nullif(p->>'remarks', ''),
@@ -501,7 +531,7 @@ begin
     update shift_reports set
       report_date    = (p->>'report_date')::date,
       shift_id       = (p->>'shift_id')::smallint,
-      prepared_by    = nullif(p->>'prepared_by', '')::uuid,
+      prepared_by    = v_by,
       total_error    = coalesce((p->>'total_error')::numeric, 0),
       total_discount = coalesce((p->>'total_discount')::numeric, 0),
       remarks        = nullif(p->>'remarks', '')
@@ -580,19 +610,48 @@ begin
 end $$;
 
 -- =====================================================================
+--  NEW SHEET DEFAULTS — the pump meters are shared, so an attendant needs
+--  the last second reading of every pump even when a coworker recorded it.
+--  Only the meter readings and prices are returned, never the coworker's sheet.
+-- =====================================================================
+create function public.sheet_defaults()
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  select case when public.current_account_id() is null then null else json_build_object(
+    'last_report', (
+      select json_build_object('report_date', report_date, 'shift_id', shift_id)
+      from shift_reports order by report_date desc, shift_id desc limit 1),
+    'readings', coalesce((
+      select json_agg(json_build_object('pump_id', pump_id, 'second_reading', second_reading))
+      from (select distinct on (r.pump_id) r.pump_id, r.second_reading
+            from fuel_readings r join shift_reports s on s.id = r.shift_report_id
+            order by r.pump_id, s.report_date desc, s.shift_id desc, r.second_reading desc) x),
+      '[]'::json),
+    'prices', coalesce((
+      select json_agg(json_build_object(
+               'fuel_type_id', fuel_type_id, 'price_per_liter', price_per_liter, 'markup', markup))
+      from (select distinct on (sp.fuel_type_id) sp.fuel_type_id, sp.price_per_liter, sp.markup
+            from shift_fuel_prices sp join shift_reports s on s.id = sp.shift_report_id
+            order by sp.fuel_type_id, s.report_date desc, s.shift_id desc) x),
+      '[]'::json)
+  ) end
+$$;
+
+-- =====================================================================
 --  SECURITY (Row Level Security)
---    * any ACTIVE account can read everything and enter shift data
---    * only ADMIN can manage master data, approve accounts, delete reports
+--    * each pump attendant sees and edits ONLY their own shift reports
+--      (and only their own person / account row)
+--    * the ADMIN sees everything, manages master data and deletes reports
 --    * password hashes and session tokens are never exposed
 -- =====================================================================
 do $$
 declare t text;
 begin
-  -- readable by every signed-in account
+  -- lookups readable by every signed-in account
   foreach t in array array[
-    'pump_attendants', 'user_accounts', 'fuel_types', 'pumps', 'shifts', 'denominations',
-    'payment_methods', 'payments', 'companies', 'shift_reports', 'shift_fuel_prices', 'fuel_readings', 'expenses',
-    'cash_counts', 'shortage_overage', 'receivables'
+    'fuel_types', 'pumps', 'shifts', 'denominations', 'payment_methods', 'companies'
   ] loop
     execute format('alter table public.%I enable row level security', t);
     execute format(
@@ -602,31 +661,54 @@ begin
 
   -- master data: admin only
   foreach t in array array['pump_attendants', 'fuel_types', 'pumps', 'shifts', 'denominations', 'payment_methods'] loop
+    execute format('alter table public.%I enable row level security', t);
     execute format(
       'create policy "admin can write" on public.%I for all to anon, authenticated
          using (public.is_admin()) with check (public.is_admin())', t);
   end loop;
 
-  -- shift data: any active account
+  -- sheet details: only whoever may open the sheet itself
   foreach t in array array[
-    'companies', 'shift_fuel_prices', 'fuel_readings', 'expenses',
+    'shift_fuel_prices', 'fuel_readings', 'expenses',
     'cash_counts', 'payments', 'shortage_overage', 'receivables'
   ] loop
+    execute format('alter table public.%I enable row level security', t);
     execute format(
-      'create policy "signed in can write" on public.%I for all to anon, authenticated
-         using (public.current_account_id() is not null)
-         with check (public.current_account_id() is not null)', t);
+      'create policy "own reports only" on public.%I for all to anon, authenticated
+         using (public.can_access_report(shift_report_id))
+         with check (public.can_access_report(shift_report_id))', t);
   end loop;
 end $$;
 
+alter table public.shift_reports enable row level security;
+alter table public.user_accounts enable row level security;
 alter table public.user_sessions enable row level security;   -- no policies = no access
 
-create policy "signed in can insert" on public.shift_reports for insert to anon, authenticated
+-- an attendant only sees their own name, not their coworkers'
+create policy "own person only" on public.pump_attendants for select to anon, authenticated
+  using (public.is_admin() or id = public.current_attendant_id());
+
+-- new company names can be added from any sheet
+create policy "signed in can add" on public.companies for insert to anon, authenticated
   with check (public.current_account_id() is not null);
-create policy "signed in can update" on public.shift_reports for update to anon, authenticated
-  using (public.current_account_id() is not null);
+
+create policy "own reports only" on public.shift_reports for select to anon, authenticated
+  using (public.is_admin() or prepared_by = public.current_attendant_id());
+create policy "own reports only insert" on public.shift_reports for insert to anon, authenticated
+  with check (public.is_admin() or prepared_by = public.current_attendant_id());
+create policy "own reports only update" on public.shift_reports for update to anon, authenticated
+  using (public.is_admin() or prepared_by = public.current_attendant_id())
+  with check (public.is_admin() or prepared_by = public.current_attendant_id());
 create policy "admin can delete" on public.shift_reports for delete to anon, authenticated
   using (public.is_admin());
+
+-- an attendant may only charge shortages / overages to themselves
+create policy "charge only yourself" on public.shortage_overage as restrictive
+  for insert to anon, authenticated
+  with check (public.is_admin() or pump_attendant_id = public.current_attendant_id());
+
+create policy "own account only" on public.user_accounts for select to anon, authenticated
+  using (public.is_admin() or id = public.current_account_id());
 create policy "admin can update" on public.user_accounts for update to anon, authenticated
   using (public.is_admin()) with check (public.is_admin());
 
@@ -642,6 +724,7 @@ grant select on public.v_fuel_sales, public.shift_report_summary to anon, authen
 revoke all on function public.save_shift_report(jsonb)            from public;
 revoke all on function public.admin_set_login(uuid, text, text)   from public;
 revoke all on function public.admin_create_attendant(text, text, text, text, text) from public;
+revoke all on function public.sheet_defaults()                    from public;
 grant execute on function public.admin_set_login(uuid, text, text)     to anon, authenticated;
 grant execute on function public.admin_create_attendant(text, text, text, text, text)
   to anon, authenticated;
@@ -649,6 +732,7 @@ grant execute on function public.sign_in(text, text)                   to anon, 
 grant execute on function public.sign_out()                            to anon, authenticated;
 grant execute on function public.me()                                  to anon, authenticated;
 grant execute on function public.save_shift_report(jsonb)              to anon, authenticated;
+grant execute on function public.sheet_defaults()                      to anon, authenticated;
 
 -- =====================================================================
 --  SEED DATA

@@ -130,7 +130,9 @@ onMounted(load)
     <!-- heading -->
     <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="m-0 font-display text-[2.4rem] leading-none font-bold">Shift reports</h1>
+        <h1 class="m-0 font-display text-[2.4rem] leading-none font-bold">
+          {{ isAdmin ? 'Shift reports' : 'My shift reports' }}
+        </h1>
         <p class="mt-1.5 text-muted-foreground">
           {{ rows.length }} report{{ rows.length === 1 ? '' : 's' }} in {{ monthLabel }}.
         </p>

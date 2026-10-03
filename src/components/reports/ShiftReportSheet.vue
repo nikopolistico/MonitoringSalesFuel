@@ -137,30 +137,26 @@ function sheetPumps(include: Set<string>): Pump[] {
     )
 }
 
-/** New sheet: first reading = previous shift's second reading; prices = last prices used. */
+type SheetDefaults = {
+  last_report: { report_date: string; shift_id: number } | null
+  readings: { pump_id: string; second_reading: number }[]
+  prices: { fuel_type_id: string; price_per_liter: number; markup: number }[]
+}
+
+/**
+ * New sheet: first reading = each pump's last second reading; prices = last prices used.
+ * Attendants cannot open coworkers' sheets, so the database hands out only these values.
+ */
 async function prepareNew() {
-  const { data: last, error: err } = await supabase
-    .from('shift_reports')
-    .select(
-      'report_date, shift_id, fuel_readings(pump_id, second_reading), shift_fuel_prices(fuel_type_id, price_per_liter, markup)',
-    )
-    .order('report_date', { ascending: false })
-    .order('shift_id', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const { data, error: err } = await supabase.rpc('sheet_defaults')
   if (err) throw err
+  const defaults = data as SheetDefaults | null
+  const last = defaults?.last_report
 
   const prevReading = new Map(
-    (last?.fuel_readings ?? []).map((r: { pump_id: string; second_reading: number }) => [
-      r.pump_id,
-      Number(r.second_reading),
-    ]),
+    (defaults?.readings ?? []).map((r) => [r.pump_id, Number(r.second_reading)]),
   )
-  for (const sp of (last?.shift_fuel_prices ?? []) as {
-    fuel_type_id: string
-    price_per_liter: number
-    markup: number
-  }[]) {
+  for (const sp of defaults?.prices ?? []) {
     prices[sp.fuel_type_id] = {
       price_per_liter: Number(sp.price_per_liter),
       markup: Number(sp.markup),
@@ -525,8 +521,8 @@ async function save() {
   const { data, error: err } = await supabase.rpc('save_shift_report', { p: payload })
   saving.value = false
   if (err) {
-    error.value = err.message.includes('shift_reports_report_date_shift_id_key')
-      ? `A ${currentShift.value?.name} shift report for ${longDate(meta.report_date)} already exists.`
+    error.value = err.message.includes('shift_reports_report_date_shift_id_prepared_by_key')
+      ? `${props.area === 'admin' ? 'This attendant already has' : 'You already have'} a ${currentShift.value?.name} shift report for ${longDate(meta.report_date)}.`
       : err.message
     return
   }
@@ -664,7 +660,7 @@ async function exportImage(format: 'png' | 'jpeg') {
               </label>
               <label class="field">
                 Prepared by (pump attendant)
-                <select v-model="meta.prepared_by">
+                <select v-model="meta.prepared_by" :disabled="props.area !== 'admin'">
                   <option value="">— select —</option>
                   <option v-for="a in selectableAttendants" :key="a.id" :value="a.id">
                     {{ a.full_name }}
